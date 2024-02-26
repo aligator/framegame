@@ -131,7 +131,7 @@ pub fn connect(list: bool, verbose: bool, serial_dev: Option<String>, wait_for_d
         return None;
     } else if wait_for_device && !waited {
         println!("Device already present.");
-        thread::sleep(Duration::from_millis(2000));
+        thread::sleep(Duration::from_millis(5000));
     }
 
 
