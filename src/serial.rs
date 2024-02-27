@@ -1,6 +1,7 @@
 use std::thread;
 use std::time::Duration;
 
+use clap::Error;
 use serialport::{SerialPort, SerialPortInfo, SerialPortType};
 
 const FWK_MAGIC: &[u8] = &[0x32, 0xAC];
@@ -125,28 +126,25 @@ pub fn find_serialdevs(list: bool, verbose: bool, serial_dev: Option<String>, wa
 }
 
 pub fn connect(list: bool, verbose: bool, serial_dev: Option<String>, wait_for_device: bool) -> Option<Box<dyn SerialPort>> {
-    let (serialdevs, waited): (Vec<String>, bool) = find_serialdevs(list, verbose, serial_dev, wait_for_device);
+    let (serialdevs, _): (Vec<String>, bool) = find_serialdevs(list, verbose, serial_dev, wait_for_device);
     if serialdevs.is_empty() {
         println!("Failed to find serial devivce. Please manually specify with --serial-dev");
         return None;
-    } else if wait_for_device && !waited {
-        println!("Device already present.");
-        thread::sleep(Duration::from_millis(5000));
     }
 
+    // Wait until device is awake.
+    loop {
+        if let Some(serialdev) = serialdevs.first() {
+            if let Ok(mut port) = serialport::new(serialdev, 115_200).timeout(SERIAL_TIMEOUT).open() {
+                if let Ok(version) = get_device_version(&mut port) {
+                    println!("found device {}", version);
+                    return Some(port);
+                }
+            }
 
-    if let Some(serialdev) = serialdevs.first() {
-        let mut port = serialport::new(serialdev, 115_200)
-            .timeout(SERIAL_TIMEOUT)
-            .open()
-            .expect("Failed to open port");
-
-        println!("found device {}", get_device_version(&mut port));
-
-        return Some(port);
+            thread::sleep(Duration::from_millis(100));
+        }
     }
-
-    return None;
 }
 
 pub fn simple_cmd(port: &mut Box<dyn SerialPort>, command: Command, args: &[u8], sleep: bool) {
@@ -163,12 +161,11 @@ pub fn simple_cmd(port: &mut Box<dyn SerialPort>, command: Command, args: &[u8],
     }
 }
 
-fn get_device_version(port: &mut Box<dyn SerialPort>) -> String {
+fn get_device_version(port: &mut Box<dyn SerialPort>) -> Result<String, Error> {
     simple_cmd(port, Command::Version, &[], true);
 
     let mut response: Vec<u8> = vec![0; 32];
-    port.read_exact(response.as_mut_slice())
-        .expect("Found no data!");
+    port.read_exact(response.as_mut_slice())?;
 
     let major = response[0];
     let minor = (response[1] & 0xF0) >> 4;
@@ -180,5 +177,5 @@ fn get_device_version(port: &mut Box<dyn SerialPort>) -> String {
         version = format!("{version}-rc")
     }
 
-    return version;
+    return Ok(version);
 }
