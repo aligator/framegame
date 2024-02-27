@@ -22,17 +22,23 @@ impl LightMatrix {
     }
 
     pub fn draw(&mut self, frame_buffer: FrameBuffer) {
+        // Draws the current frame in a separate thread to avoid blocking the main thread.
         let port = self.port.clone();
         let _ = thread::spawn(move || -> () {
             if let Ok(port) = &mut port.try_lock() {
                 for x in 0..WIDTH {
                     let mut col: [u8; HEIGHT + 1] = [0x00; HEIGHT + 1];
+                    // Set column number.
                     col[0] = u8::try_from(x).unwrap();
+
+                    // Set column pixels.
                     col[1..].copy_from_slice(&frame_buffer.0[x * HEIGHT..(x + 1) * HEIGHT]);
 
+                    // Send column.
                     simple_cmd(port, Command::SendCol, &col, true);
                 }
 
+                // Commit frame.
                 simple_cmd(port, Command::CommitCols, &[], true);
             } else {
                 // println!("skip frame");
