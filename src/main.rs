@@ -1,10 +1,8 @@
-use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
 use bevy::app::FixedMain;
 use bevy::prelude::*;
-use bevy::utils::tracing::Instrument;
 use clap::Parser;
 use rand::random;
 use serialport::SerialPort;
@@ -108,9 +106,4 @@ fn main() {
         .add_systems(FixedMain, draw_frame)
         .add_systems(Update, set_random_pixel)
         .run();
-
-    /* let port = connect(args.list, args.verbose, args.serial_dev, args.wait_for_device);
-     if let Some(mut port) = port {
-         run(&mut port);
-     }*/
 }
