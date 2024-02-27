@@ -1,8 +1,12 @@
 use std::ops::Deref;
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 use bevy::app::FixedMain;
 use bevy::prelude::*;
+use bevy::utils::tracing::Instrument;
 use clap::Parser;
+use rand::random;
 use serialport::SerialPort;
 
 use crate::serial::{Command, connect, simple_cmd};
@@ -33,34 +37,63 @@ const WIDTH: usize = 9;
 const HEIGHT: usize = 34;
 
 struct LightMatrix {
-    port: Option<Box<dyn SerialPort>>,
-    
-    frame_buffer: [u8; WIDTH * HEIGHT]
+    port: Arc<Mutex<Box<dyn SerialPort>>>,
 }
 
 impl LightMatrix {
     pub fn new(args: ClapCli) -> Self {
         Self {
-            port: connect(args.list, args.verbose, args.serial_dev, args.wait_for_device),
-            frame_buffer: [0x00; WIDTH * HEIGHT],
+            port: Arc::new(Mutex::new(connect(args.list, args.verbose, args.serial_dev, args.wait_for_device).unwrap())),
         }
     }
 
-    pub fn draw(&mut self) {
-        if let Some(port) = &mut self.port {
-            let mut row: [u8; HEIGHT + 1] = [0xff; HEIGHT + 1];
-            for x in 0..WIDTH {
-                row[0] = u8::try_from(x).unwrap();
-                simple_cmd(port, Command::SendCol, &row.clone(), true);
-            }
+    pub fn draw(&mut self, frame_buffer: FrameBuffer) {
+        let port = self.port.clone();
+        let _ = thread::spawn(move || -> () {
+            if let Ok(port) = &mut port.try_lock() {
+                for x in 0..WIDTH {
+                    let mut col: [u8; HEIGHT + 1] = [0x00; HEIGHT + 1];
+                    col[0] = u8::try_from(x).unwrap();
+                    col[1..].copy_from_slice(&frame_buffer.0[x * HEIGHT..(x + 1) * HEIGHT]);
 
-            simple_cmd(port, Command::CommitCols, &[], true);
-        }
+                    simple_cmd(port, Command::SendCol, &col, true);
+                }
+
+                simple_cmd(port, Command::CommitCols, &[], true);
+            } else {
+                // println!("skip frame");
+            }
+        });
     }
 }
 
-fn draw_frame(mut light_matrix: NonSendMut<LightMatrix>) {
-    light_matrix.draw();
+#[derive(Resource)]
+struct FrameBuffer([u8; WIDTH * HEIGHT]);
+
+impl Default for FrameBuffer {
+    fn default() -> Self {
+        Self([0x00; WIDTH * HEIGHT])
+    }
+}
+
+#[derive(Resource)]
+struct SpawnTimer(Timer);
+
+fn draw_frame(mut light_matrix: NonSendMut<LightMatrix>, frame_buffer: Res<FrameBuffer>) {
+    let buffer_copy = FrameBuffer(frame_buffer.0.clone());
+    light_matrix.draw(buffer_copy);
+}
+
+fn set_random_pixel(time: Res<Time>, mut timer: ResMut<SpawnTimer>, mut frame_buffer: ResMut<FrameBuffer>) {
+    // update our timer with the time elapsed since the last update
+    // if that caused the timer to finish, we say hello to everyone
+    if timer.0.tick(time.delta()).just_finished() {
+        let x = random::<usize>() % WIDTH;
+        let y = random::<usize>() % HEIGHT;
+        let mut new_frame_buffer = frame_buffer.0.clone();
+        new_frame_buffer[y * WIDTH + x] = 0xff;
+        *frame_buffer = FrameBuffer(new_frame_buffer);
+    }
 }
 
 fn main() {
@@ -70,7 +103,10 @@ fn main() {
     App::new()
         .add_plugins(MinimalPlugins)
         .insert_non_send_resource(LightMatrix::new(args))
+        .insert_resource(FrameBuffer::default())
+        .insert_resource(SpawnTimer(Timer::from_seconds(0.1, TimerMode::Repeating)))
         .add_systems(FixedMain, draw_frame)
+        .add_systems(Update, set_random_pixel)
         .run();
 
     /* let port = connect(args.list, args.verbose, args.serial_dev, args.wait_for_device);
