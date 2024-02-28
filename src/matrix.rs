@@ -50,6 +50,9 @@ impl LightMatrix {
 }
 
 #[derive(Resource)]
+pub struct FrameLimit(pub Timer);
+
+#[derive(Resource)]
 pub struct FrameBuffer(pub [u8; WIDTH as usize * HEIGHT as usize]);
 
 impl Default for FrameBuffer {
@@ -65,7 +68,13 @@ impl FrameBuffer {
 }
 
 
-fn render(mut light_matrix: NonSendMut<LightMatrix>, frame_buffer: Res<FrameBuffer>) {
+fn render(time: Res<Time>, timer: Option<ResMut<FrameLimit>>, mut light_matrix: NonSendMut<LightMatrix>, frame_buffer: Res<FrameBuffer>) {
+    if let Some(mut timer) = timer {
+        if !timer.0.tick(time.delta()).just_finished() {
+            return;
+        }
+    }
+
     let buffer_copy = FrameBuffer(frame_buffer.0.clone());
     light_matrix.draw(buffer_copy);
 }

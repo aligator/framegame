@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use clap::Parser;
 use rand::random;
 
-use crate::matrix::{FrameBuffer, HEIGHT, MatrixPlugin, WIDTH};
+use crate::matrix::{FrameBuffer, FrameLimit, HEIGHT, MatrixPlugin, WIDTH};
 use crate::schedule::Draw;
 
 mod matrix;
@@ -66,7 +66,7 @@ fn setup(mut commands: Commands) {
         position: Position { x: 1, y: 1 },
         velocity: Velocity { x: 1, y: 1 },
         size: Size {
-            width: 2,
+            width: 3,
             height: 3,
         },
         color: Color(0xff),
@@ -106,12 +106,14 @@ fn bounce(
 fn movement(time: Res<Time>, mut timer: ResMut<AnimationTimer>,
             mut query: Query<(&mut Position, &Velocity, &Size)>,
 ) {
-    if timer.0.tick(time.delta()).just_finished() {
-        for (mut position, velocity, size) in &mut query {
-            position.x = ((position.x as i16 + velocity.x) as u8).clamp(0, WIDTH - size.width);
-            position.y =
-                ((position.y as i16 + velocity.y) as u8).clamp(0, HEIGHT - size.height);
-        }
+    if !timer.0.tick(time.delta()).just_finished() {
+        return;
+    }
+
+    for (mut position, velocity, size) in &mut query {
+        position.x = ((position.x as i16 + velocity.x) as u8).clamp(0, WIDTH - size.width);
+        position.y =
+            ((position.y as i16 + velocity.y) as u8).clamp(0, HEIGHT - size.height);
     }
 }
 
@@ -158,7 +160,8 @@ fn main() {
             Update,
             (bounce, movement).chain(),
         )
-        .insert_resource(AnimationTimer(Timer::from_seconds(0.2, TimerMode::Repeating)))
+        .insert_resource(FrameLimit(Timer::from_seconds(0.1, TimerMode::Repeating)))
+        .insert_resource(AnimationTimer(Timer::from_seconds(0.3, TimerMode::Repeating)))
         .add_systems(Draw, (draw_background, draw_objects).chain())
         .run();
 }
