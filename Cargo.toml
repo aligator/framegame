@@ -10,6 +10,7 @@ bevy = "0.13.0"
 clap = { version = "4.3", features = ["derive"] }
 serialport = "4.2.1"
 rand = "0.9.0-alpha.0"
+time = "0.3.34"
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]
