@@ -3,7 +3,6 @@
 use std::thread;
 use std::time::Duration;
 
-use clap::Error;
 use serialport::{SerialPort, SerialPortInfo, SerialPortType};
 
 const FWK_MAGIC: &[u8] = &[0x32, 0xAC];
@@ -163,7 +162,7 @@ pub fn simple_cmd(port: &mut Box<dyn SerialPort>, command: Command, args: &[u8],
     }
 }
 
-fn get_device_version(port: &mut Box<dyn SerialPort>) -> Result<String, Error> {
+fn get_device_version(port: &mut Box<dyn SerialPort>) -> Result<String, std::io::Error> {
     simple_cmd(port, Command::Version, &[], true);
 
     let mut response: Vec<u8> = vec![0; 32];

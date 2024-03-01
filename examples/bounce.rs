@@ -1,10 +1,9 @@
 use bevy::prelude::*;
 use clap::Parser;
 use rand::random;
-use crate::framegame::matrix::{FrameBuffer, FrameLimit, HEIGHT, MatrixPlugin, WIDTH};
-use crate::framegame::schedule::Draw;
 
-mod framegame;
+use framegame::matrix::{FrameBuffer, FrameLimit, HEIGHT, MatrixPlugin, WIDTH};
+use framegame::schedule::Draw;
 
 #[derive(Parser, Debug)]
 #[command(version, arg_required_else_help = true)]
