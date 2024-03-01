@@ -33,8 +33,13 @@ impl LightMatrix {
                     col[0] = u8::try_from(x).unwrap();
 
                     // Set column pixels.
-                    col[1..].copy_from_slice(&frame_buffer.0[(x as usize * HEIGHT as usize)..((x + 1) as usize * HEIGHT as usize)]);
-
+                    let col_range = (x as usize * HEIGHT as usize)..((x + 1) as usize * HEIGHT as usize);
+                    col[1..].copy_from_slice(&frame_buffer.0[col_range]);
+                    
+                    // Reverse y-axis.
+                    // This matches the bevy coordinate system. (left bottom is 0, 0)
+                    col[1..].reverse();
+                    
                     // Send column.
                     simple_cmd(port, Command::SendCol, &col, true);
                 }

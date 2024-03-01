@@ -135,7 +135,7 @@ fn draw_objects(
             let x_offset = x * HEIGHT as u16;
             let i = x_offset + y_offset;
             let j = i + height_bytes;
-
+            
             frame_buffer.0[i as usize..j as usize].copy_from_slice(object_col);
         }
     }
