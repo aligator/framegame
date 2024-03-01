@@ -5,9 +5,8 @@ use bevy::app::MainScheduleOrder;
 use bevy::ecs::schedule::ExecutorKind;
 use bevy::prelude::*;
 use serialport::SerialPort;
-
-use crate::schedule::{Draw, Render};
-use crate::serial::{Command, connect, simple_cmd};
+use crate::framegame::schedule::{Draw, Render};
+use crate::framegame::serial::{Command, connect, simple_cmd};
 
 pub const WIDTH: u8 = 9;
 pub const HEIGHT: u8 = 34;
