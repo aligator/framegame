@@ -5,61 +5,14 @@ use rand::random;
 use framegame::matrix::{FrameBuffer, FrameLimit, HEIGHT, MatrixPlugin, WIDTH};
 use framegame::schedule::Draw;
 
-#[derive(Parser, Debug)]
-#[command(version, arg_required_else_help = true)]
-pub struct ClapCli {
-    /// List connected HID devices
-    #[arg(short, long)]
-    list: bool,
+use crate::common::{ClapCli, Color, ObjectBundle, Size, Velocity};
 
-    /// Verbose outputs to the console
-    #[arg(short, long)]
-    verbose: bool,
-
-    /// Serial device, like /dev/ttyACM0 or COM0
-    #[arg(long)]
-    pub serial_dev: Option<String>,
-
-    /// Retry connecting to the device until it works
-    #[arg(long)]
-    wait_for_device: bool,
-}
-
-#[derive(Component, Debug)]
-struct Position {
-    x: u8,
-    y: u8,
-}
-
-#[derive(Component, Debug)]
-struct Velocity {
-    x: i16,
-    y: i16,
-}
-
-#[derive(Component, Debug)]
-struct Size {
-    width: u8,
-    height: u8,
-}
-
-#[derive(Component, Debug)]
-struct Color(u8);
-
-
-#[derive(Bundle, Debug)]
-struct ObjectBundle {
-    position: Position,
-    velocity: Velocity,
-    size: Size,
-    color: Color,
-}
-
+mod common;
 
 /// Spawn object.
 fn setup(mut commands: Commands) {
     let box_object = ObjectBundle {
-        position: Position { x: 1, y: 1 },
+        position: TransformBundle::from_transform(Transform::from_xyz(5.0, 5.0, 0.0)),
         velocity: Velocity { x: 1, y: 1 },
         size: Size {
             width: 3,
@@ -72,23 +25,23 @@ fn setup(mut commands: Commands) {
 
 /// Bounce object off edges of buffer.
 fn bounce(
-    mut query: Query<(&Position, &mut Velocity, &Size, &mut Color)>,
+    mut query: Query<(&Transform, &mut Velocity, &Size, &mut Color)>,
 ) {
     for (position, mut velocity, size, mut color) in &mut query {
         let mut bounce = false;
-        if position.x == 0 && velocity.x < 0 {
+        if position.translation.x == 0.0 && velocity.x < 0 {
             velocity.x *= -1;
             bounce = true;
         }
-        if position.x + size.width == WIDTH && velocity.x > 0 {
+        if position.translation.x + size.width as f32 == WIDTH as f32 && velocity.x > 0 {
             velocity.x *= -1;
             bounce = true;
         }
-        if position.y == 0 && velocity.y < 0 {
+        if position.translation.y == 0.0 && velocity.y < 0 {
             velocity.y *= -1;
             bounce = true;
         }
-        if position.y + size.height == HEIGHT && velocity.y > 0 {
+        if position.translation.y + size.height as f32 == HEIGHT as f32 && velocity.y > 0 {
             velocity.y *= -1;
             bounce = true;
         }
@@ -100,16 +53,16 @@ fn bounce(
 
 /// Move object based on current velocity.
 fn movement(time: Res<Time>, mut timer: ResMut<AnimationTimer>,
-            mut query: Query<(&mut Position, &Velocity, &Size)>,
+            mut query: Query<(&mut Transform, &Velocity, &Size)>,
 ) {
     if !timer.0.tick(time.delta()).just_finished() {
         return;
     }
 
     for (mut position, velocity, size) in &mut query {
-        position.x = ((position.x as i16 + velocity.x) as u8).clamp(0, WIDTH - size.width);
-        position.y =
-            ((position.y as i16 + velocity.y) as u8).clamp(0, HEIGHT - size.height);
+        position.translation.x = (position.translation.x + velocity.x as f32).clamp(0.0, WIDTH as f32 - size.width as f32);
+        position.translation.y =
+            (position.translation.y + velocity.y as f32).clamp(0.0, HEIGHT as f32 - size.height as f32);
     }
 }
 
@@ -122,20 +75,20 @@ fn draw_background(mut frame_buffer: ResMut<FrameBuffer>) {
 /// Draw objects to buffer.
 fn draw_objects(
     mut frame_buffer: ResMut<FrameBuffer>,
-    query: Query<(&Position, &Size, &Color)>,
+    query: Query<(&GlobalTransform, &Size, &Color)>,
 ) {
     for (position, size, color) in &query {
         // frame_buffer.set_pixel(2, 33, 0xff)
         //frame_buffer.set_pixel(position.x, position.y, color.0)
-        let y_offset = position.y as u16;
+        let y_offset = position.translation().y as u16;
         let height_bytes = size.height as u16;
         let object_col = &[color.0].repeat(size.height as usize);
 
-        for x in position.x as u16..(position.x as u16 + size.width as u16) {
+        for x in position.translation().x as u16..(position.translation().x as u16 + size.width as u16) {
             let x_offset = x * HEIGHT as u16;
             let i = x_offset + y_offset;
             let j = i + height_bytes;
-            
+
             frame_buffer.0[i as usize..j as usize].copy_from_slice(object_col);
         }
     }
@@ -149,7 +102,14 @@ fn main() {
     let args = ClapCli::parse_from(args);
 
     App::new()
-        .add_plugins(MinimalPlugins)
+        .add_plugins((
+            // Use minimal here, as we don't want a window and need no user input. So for this basic example this is enough.
+            MinimalPlugins,
+
+            // To set the global transform from the local transform.
+            // We could have used a custom Transform component instead or use Transform for drawing and not the global transform.
+            TransformPlugin,
+        ))
         .add_plugins(MatrixPlugin { list: args.list, verbose: args.verbose, serial_dev: args.serial_dev, wait_for_device: args.wait_for_device })
         .add_systems(Startup, setup)
         .add_systems(
